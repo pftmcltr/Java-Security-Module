@@ -1,11 +1,9 @@
 package com.example.securitymodule.domain;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.springframework.http.HttpStatus;
 
-import java.time.LocalDate;
 import java.util.Date;
 
 @Data
@@ -19,7 +17,8 @@ public class HttpResponse {
     private String message;
 
     public HttpResponse(int httpStatusCode, HttpStatus httpStatus, String reason, String message) {
-        this.timestamp = new Date();
+
+        this.timestamp = new Date(); // Date is auto-generated.
         this.httpStatusCode = httpStatusCode;
         this.httpStatus = httpStatus;
         this.reason = reason;

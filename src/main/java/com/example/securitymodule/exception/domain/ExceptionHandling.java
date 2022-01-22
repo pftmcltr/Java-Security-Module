@@ -14,7 +14,6 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.servlet.NoHandlerFoundException;
 
 import javax.persistence.NoResultException;
 import java.io.IOException;
@@ -25,6 +24,7 @@ import java.util.Objects;
 @RestControllerAdvice
 @Slf4j
 public class ExceptionHandling implements ErrorController {
+
     public static final String ACCOUNT_LOCKED = "Your account has been locked.";
     public static final String METHOD_IS_NOT_ALLOWED = "This request method is not allowed on this endpoint. Please send a '%s' request." ;
     public static final String INTERNAL_SERVER_ERROR_MSG = "An error occurred while processing the request.";
@@ -91,7 +91,9 @@ public class ExceptionHandling implements ErrorController {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<HttpResponse> methodNotAllowedException(HttpRequestMethodNotSupportedException exception){
         log.error(exception.getMessage());
-        HttpMethod supportedMethod = Objects.requireNonNull(exception.getSupportedHttpMethods()).iterator().next(); // The set will contain only one element, because all of our endpoints will have only one method.
+        HttpMethod supportedMethod = Objects
+                .requireNonNull(exception.getSupportedHttpMethods())
+                .iterator().next(); // The set will contain only one element, because all of our endpoints will have only one method.
         return createHttpResponse(HttpStatus.METHOD_NOT_ALLOWED, String.format(METHOD_IS_NOT_ALLOWED, supportedMethod));
     }
 
@@ -115,11 +117,13 @@ public class ExceptionHandling implements ErrorController {
     }
 
     private ResponseEntity<HttpResponse> createHttpResponse(HttpStatus httpStatus, String message){
+
         HttpResponse httpResponse = new HttpResponse(
                 httpStatus.value(),
                 httpStatus,
                 httpStatus.getReasonPhrase().toUpperCase(),
                 message.toUpperCase());
+
         return new ResponseEntity<>(httpResponse,httpStatus);
     }
 }

@@ -17,19 +17,19 @@ public class UserPrincipal implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return Stream
-                .of(this.user.getAuthorities())
+                .of(user.getAuthorities())
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
     }
 
     @Override
     public String getPassword() {
-        return this.user.getPassword();
+        return user.getPassword();
     }
 
     @Override
     public String getUsername() {
-        return this.user.getUsername();
+        return user.getUsername();
     }
 
     @Override
@@ -39,7 +39,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return this.user.isNotLocked();
+        return user.isNotLocked();
     }
 
     @Override
@@ -49,6 +49,6 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return this.user.isActive();
+        return user.isActive();
     }
 }

@@ -4,7 +4,6 @@ import com.example.securitymodule.constant.SecurityConstant;
 import com.example.securitymodule.filter.JwtAccessDeniedHandler;
 import com.example.securitymodule.filter.JwtAuthenticationEntryPoint;
 import com.example.securitymodule.filter.JwtAuthorizationFilter;
-import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -22,7 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
+@EnableGlobalMethodSecurity(prePostEnabled = true) // Allows pre- and post-invocation authorization checks.
 public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     private final JwtAuthorizationFilter jwtAuthorizationFilter;
@@ -35,7 +34,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
     public SecurityConfiguration(JwtAuthorizationFilter jwtAuthorizationFilter,
                                  JwtAccessDeniedHandler jwtAccessDeniedHandler,
                                  JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
-                                 @Qualifier("userDetailsService") UserDetailsService userDetailsService, // This interface is already implemented in our UserServiceImpl, therefore we must use the new, modified methods
+                                 @Qualifier("userDetailsService") UserDetailsService userDetailsService, // This is actually UserServiceImpl.
                                  BCryptPasswordEncoder bCryptPasswordEncoder) {
         this.jwtAuthorizationFilter = jwtAuthorizationFilter;
         this.jwtAccessDeniedHandler = jwtAccessDeniedHandler;
@@ -51,7 +50,8 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.csrf().disable().cors().and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        http.csrf().disable().cors()
+                .and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and().authorizeRequests().antMatchers(SecurityConstant.PUBLIC_URLS).permitAll()
                 .anyRequest().authenticated()
                 .and().exceptionHandling().accessDeniedHandler(jwtAccessDeniedHandler)
