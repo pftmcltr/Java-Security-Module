@@ -13,8 +13,12 @@ spring:
   jpa:
     spring.jpa.database-platform: org.hibernate.dialect.H2Dialect
     show-sql: true
+    hibernate:
+      ddl-auto: update
   h2:
-    console.enabled: true
+    console:
+      enabled: true
+      path: /console
 
 jwt:
   secret: "dnlmbrJGccmaHHe9YYj6+uqCdUO1yycCijMAA70qWlQ="
