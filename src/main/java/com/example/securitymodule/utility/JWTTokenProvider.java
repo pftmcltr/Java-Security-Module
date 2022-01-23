@@ -29,19 +29,79 @@ public class JWTTokenProvider {
     @Value("${jwt.secret}")
     private String secret;
 
-    //    1. Generate the JWT Token
-    public String generateJwtToken(UserPrincipal userPrincipal){
+    //    Generate the JWT Access Token
+    public String generateJwtAccessToken(UserPrincipal userPrincipal){
 
         String[] claims = getClaimsFromUser(userPrincipal);
 
         return JWT.create()
-                .withIssuer(GET_ARRAYS_LLC)
-                .withAudience(GET_ARRAYS_ADMINISTRATION)
+                .withIssuer(WEBSITE_NAME)
+                .withAudience(WEBSITE_ADMINISTRATION)
                 .withIssuedAt(new Date())
                 .withSubject(userPrincipal.getUsername())
                 .withArrayClaim(AUTHORITIES, claims)
-                .withExpiresAt(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .withExpiresAt(new Date(System.currentTimeMillis() + ACCESS_EXPIRATION_TIME))
                 .sign(Algorithm.HMAC512(secret.getBytes()));
+    }
+
+    //    Generate the JWT Refresh Token
+    public String generateJwtRefreshToken(UserPrincipal userPrincipal){
+
+        return JWT.create()
+                .withIssuer(WEBSITE_NAME)
+                .withAudience(WEBSITE_ADMINISTRATION)
+                .withIssuedAt(new Date())
+                .withSubject(userPrincipal.getUsername())
+                .withExpiresAt(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION_TIME))
+                .sign(Algorithm.HMAC512(secret.getBytes()));
+    }
+
+    //    Get the Authorities
+    public List<GrantedAuthority> getAuthorities(String token){
+
+        String[] claims = getClaimsFromToken(token);
+
+        return Stream.of(claims).map(SimpleGrantedAuthority::new).collect(Collectors.toList());
+    }
+
+    //    Get Authentication
+    public Authentication getAuthentication(String username,
+                                            List<GrantedAuthority> authorities,
+                                            HttpServletRequest request){
+
+        UsernamePasswordAuthenticationToken usernamePasswordToken =
+                new UsernamePasswordAuthenticationToken(
+                        username,
+                        null,
+                        authorities);
+
+        usernamePasswordToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+        return usernamePasswordToken;
+    }
+
+    //    Validate Token
+    public boolean isTokenValid(String username, String token){
+
+        JWTVerifier verifier = getJWTVerifier();
+
+        return StringUtils.isNotEmpty(username) && !isTokenExpired(verifier, token); // Use Commons Lang3 Library for strings.
+    }
+
+    //    Check Token's Expiration Date
+    private boolean isTokenExpired(JWTVerifier verifier, String token) {
+
+        Date expiration = verifier.verify(token).getExpiresAt();
+
+        return expiration.before(new Date());
+    }
+
+    //    Get Subject
+    public String getSubject(String token){
+
+        JWTVerifier verifier = getJWTVerifier();
+
+        return verifier.verify(token).getSubject();
     }
 
     private JWTVerifier getJWTVerifier() {
@@ -50,8 +110,8 @@ public class JWTTokenProvider {
 
         try{
             Algorithm algorithm = Algorithm.HMAC512(secret);
-            verifier = JWT.require(algorithm).withIssuer(GET_ARRAYS_LLC).build();
-        } catch (JWTVerificationException exception){ // do not use exception when sending errors to the user
+            verifier = JWT.require(algorithm).withIssuer(WEBSITE_NAME).build();
+        } catch (JWTVerificationException exception){ // Do not use this "exception" when sending errors to the user.
             throw new JWTVerificationException(TOKEN_CANNOT_BE_VERIFIED);
         }
 
@@ -69,57 +129,10 @@ public class JWTTokenProvider {
         return authorities.toArray(new String[0]);
     }
 
-    //    2. Get the Authorities
-    public List<GrantedAuthority> getAuthorities(String token){
-
-        String[] claims = getClaimsFromToken(token);
-
-        return Stream.of(claims).map(SimpleGrantedAuthority::new).collect(Collectors.toList());
-    }
-
     private String[] getClaimsFromToken(String token) {
 
         JWTVerifier verifier = getJWTVerifier();
 
         return verifier.verify(token).getClaim(AUTHORITIES).asArray(String.class);
-    }
-
-    //    3. Get Authentication
-    public Authentication getAuthentication(String username,
-                                            List<GrantedAuthority> authorities,
-                                            HttpServletRequest request){
-
-        UsernamePasswordAuthenticationToken usernamePasswordToken =
-                new UsernamePasswordAuthenticationToken(
-                        username,
-                        null,
-                        authorities);
-
-        usernamePasswordToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-        return usernamePasswordToken;
-    }
-
-    //    4. Validate Token
-    public boolean isTokenValid(String username, String token){
-
-        JWTVerifier verifier = getJWTVerifier();
-
-        return StringUtils.isNotEmpty(username) && !isTokenExpired(verifier, token); // Use Commons Lang3 Library for strings.
-    }
-
-    private boolean isTokenExpired(JWTVerifier verifier, String token) {
-
-        Date expiration = verifier.verify(token).getExpiresAt();
-
-        return expiration.before(new Date());
-    }
-
-    //    5. Get Subject
-    public String getSubject(String token){
-
-        JWTVerifier verifier = getJWTVerifier();
-
-        return verifier.verify(token).getSubject();
     }
 }
