@@ -12,14 +12,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.mail.MessagingException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
+
+import static com.example.securitymodule.constant.FileConstant.*;
+import static org.springframework.http.MediaType.IMAGE_JPEG_VALUE;
 
 @RestController
 @RequestMapping({"/", "/user"}) // Use this mapping to ensure that the 404-page error handler will work properly.
@@ -27,6 +36,8 @@ import java.util.List;
 public class UserResource extends ExceptionHandling {
 
     public static final String EMAIL_WITH_THE_NEW_PASSWORD_WAS_SENT_TO = "An email with the new password was sent to: ";
+    public static final String USER_DELETED_SUCCESSFULLY = "User deleted successfully.";
+
     @Autowired
     private UserService userService;
     @Autowired
@@ -74,7 +85,7 @@ public class UserResource extends ExceptionHandling {
     }
 
     @PostMapping("/update")
-    public ResponseEntity<User> updateUser(@RequestParam("currentUsername") String currentUsername,
+    public ResponseEntity<User> updateUser(@RequestParam("currentUsername") String currentUsername, // RequestParam comes from HTML Form data, so the value must be placed in the Body, not Paths.
                                            @RequestParam("firstName") String firstName,
                                            @RequestParam("lastName") String lastName,
                                            @RequestParam("username") String username,
@@ -85,7 +96,7 @@ public class UserResource extends ExceptionHandling {
                                            @RequestParam(value = "profileImage", required = false) MultipartFile profileImage)
             throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
 
-        User updatedUser = userService.update(currentUsername, firstName, lastName, username, email, role,
+        User updatedUser = userService.updateUser(currentUsername, firstName, lastName, username, email, role,
                 Boolean.parseBoolean(isActive), Boolean.parseBoolean(isNotLocked), profileImage);
 
         return new ResponseEntity<>(updatedUser, HttpStatus.OK);
@@ -105,7 +116,7 @@ public class UserResource extends ExceptionHandling {
         return new ResponseEntity<>(users, HttpStatus.OK);
     }
 
-    @GetMapping("/resetPassword/{email}")
+    @GetMapping("/reset-password/{email}")
     public ResponseEntity<HttpResponse> resetPassword(@PathVariable("email") String email)
             throws EmailNotFoundException, MessagingException {
 
@@ -113,8 +124,57 @@ public class UserResource extends ExceptionHandling {
         return response(HttpStatus.OK, EMAIL_WITH_THE_NEW_PASSWORD_WAS_SENT_TO + email);
     }
 
-    private ResponseEntity<HttpResponse> response(HttpStatus ok, String message) {
-        return null;
+    @DeleteMapping("/delete/{id}")
+    @PreAuthorize("hasAnyAuthority('user:delete')") // Only users with "delete" authority can delete an account.
+    public ResponseEntity<HttpResponse> deleteUser(@PathVariable("id") long id){
+
+        userService.deleteUser(id);
+        return response(HttpStatus.NO_CONTENT, USER_DELETED_SUCCESSFULLY);
+    }
+
+    @PostMapping("/update-profile-image")
+    public ResponseEntity<User> updateProfileImage(@RequestParam("username") String username,
+                                                   @RequestParam(value = "profileImage") MultipartFile profileImage)
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
+
+        User user = userService.updateProfileImage(username, profileImage);
+        return new ResponseEntity<>(user, HttpStatus.OK);
+    }
+
+    @GetMapping(path = "/image/{username}/{fileName}", produces = IMAGE_JPEG_VALUE)
+    public byte[] getProfileImage(@PathVariable("username") String username,
+                                  @PathVariable("fileName") String fileName) throws IOException {
+
+        return Files.readAllBytes(Paths.get(USER_FOLDER + username + FORWARD_SLASH + fileName)); // "user.home" + "/supportportal/user/username/username.jpg"
+    }
+
+    //    Robohash profile image
+    @GetMapping(path = "/image/profile/{username}", produces = IMAGE_JPEG_VALUE)
+    public byte[] getTempProfileImage(@PathVariable("username") String username) throws IOException {
+
+        URL url = new URL(TEMP_PROFILE_IMAGE_BASE_URL + username); // Create a URL.
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(); // Store the data that comes from the URL.
+
+        try(InputStream inputStream = url.openStream()){ // Open the URL.
+            int bytesRead;
+            byte[] chunk = new byte[1024]; // Read 1024 from the inputStream.
+            while((bytesRead = inputStream.read(chunk)) > 0){ // Read chunks of inputStream until we're done.
+                byteArrayOutputStream.write(chunk, 0, bytesRead); // Loop 1 - 1024 bytes, Loop 2 - 1024 bytes.
+            }
+        }
+
+        return byteArrayOutputStream.toByteArray();
+    }
+
+    private ResponseEntity<HttpResponse> response(HttpStatus httpStatus, String message) {
+
+        HttpResponse body = new HttpResponse(
+                httpStatus.value(),
+                httpStatus,
+                httpStatus.getReasonPhrase().toUpperCase(),
+                message.toUpperCase());
+
+        return new ResponseEntity<>(body, httpStatus); // ResponseEntity takes two parameters: body & httpStatus. In this case, the body is the HttpResponse custom class.
     }
 
     private HttpHeaders getJwtHeader(UserPrincipal userPrincipal) {

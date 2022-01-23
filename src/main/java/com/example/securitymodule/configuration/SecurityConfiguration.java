@@ -21,7 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true) // Allows pre- and post-invocation authorization checks.
+@EnableGlobalMethodSecurity(prePostEnabled = true) // Allows pre- and post-invocation authorization checks. Now we can pre-authorize methods like @DeleteMapping in the UserResource.
 public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     private final JwtAuthorizationFilter jwtAuthorizationFilter;
@@ -54,9 +54,10 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
                 .and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and().authorizeRequests().antMatchers(SecurityConstant.PUBLIC_URLS).permitAll()
                 .anyRequest().authenticated()
-                .and().exceptionHandling().accessDeniedHandler(jwtAccessDeniedHandler)
+                .and().exceptionHandling() // Adding exceptions for UNAUTHORIZED OR FORBIDDEN calls.
+                .accessDeniedHandler(jwtAccessDeniedHandler)
                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                .and().addFilterBefore(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class);
+                .and().addFilterBefore(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class); // Check the TOKEN before allowing any requests for authenticated users.
 
         http.headers().frameOptions().disable(); // H2 needs this line in order to work.
     }
