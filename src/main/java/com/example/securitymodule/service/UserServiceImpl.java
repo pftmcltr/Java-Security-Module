@@ -98,7 +98,8 @@ public class UserServiceImpl implements UserService, UserDetailsService {
                 .build();
 
         userRepository.save(user); // Save new User in the database.
-        emailService.sendNewPasswordEmail(firstName, password, email); // Send to User the password by email.
+        log.info("PASSWORD " + password);
+//        emailService.sendNewPasswordEmail(firstName, password, email); // Send to User the password by email.
         return user;
     }
 

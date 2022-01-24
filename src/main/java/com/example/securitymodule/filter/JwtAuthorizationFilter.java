@@ -3,6 +3,7 @@ package com.example.securitymodule.filter;
 import static com.example.securitymodule.constant.SecurityConstant.*;
 import com.example.securitymodule.utility.JWTTokenProvider;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -20,6 +21,7 @@ import java.util.List;
 
 @Component
 @AllArgsConstructor
+@Slf4j
 public class JwtAuthorizationFilter extends OncePerRequestFilter { // This  will start only once, everytime there's a new request.
 
     //  Token Provider
@@ -31,7 +33,10 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter { // This  will
                                     FilterChain filterChain)
                                     throws ServletException, IOException {
 
-        if(request.getMethod().equalsIgnoreCase(OPTIONS_HTTP_METHOD)){
+        if(request.getServletPath().equals("/user/token/refresh")){
+            filterChain.doFilter(request, response);
+        }
+        else if(request.getMethod().equalsIgnoreCase(OPTIONS_HTTP_METHOD)){
             response.setStatus(HttpStatus.OK.value()); // If the request method is absent, we don't do anything.
         } else{
 

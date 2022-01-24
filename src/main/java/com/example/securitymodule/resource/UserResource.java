@@ -7,7 +7,9 @@ import com.example.securitymodule.domain.UserPrincipal;
 import com.example.securitymodule.exception.domain.*;
 import com.example.securitymodule.service.UserService;
 import com.example.securitymodule.utility.JWTTokenProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -19,20 +21,27 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.mail.MessagingException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.example.securitymodule.constant.FileConstant.*;
+import static com.example.securitymodule.constant.SecurityConstant.*;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 import static org.springframework.http.MediaType.IMAGE_JPEG_VALUE;
 
 @RestController
 @RequestMapping({"/", "/user"}) // Use this mapping to ensure that the 404-page error handler will work properly.
 @AllArgsConstructor
+@Slf4j
 public class UserResource extends ExceptionHandling {
 
     public static final String EMAIL_WITH_THE_NEW_PASSWORD_WAS_SENT_TO = "An email with the new password was sent to: ";
@@ -52,19 +61,19 @@ public class UserResource extends ExceptionHandling {
         User newUser = userService.register(user.getFirstName(), user.getLastName(),
                                             user.getUsername(), user.getEmail());
 
-        return new ResponseEntity<>(newUser, HttpStatus.OK);
+        return ResponseEntity.ok().body(newUser);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<User> login(@RequestBody User user) {
+    public ResponseEntity<?> login(@RequestBody User user) {
 
         authenticate(user.getUsername(), user.getPassword());
 
         User loginUser = userService.findUserByUsername(user.getUsername());
         UserPrincipal userPrincipal = new UserPrincipal(loginUser);
-        HttpHeaders jwtHeader = getJwtHeader(userPrincipal);
+        Map<String,String> tokens = getJwtTokens(userPrincipal);
 
-        return new ResponseEntity<>(loginUser, jwtHeader, HttpStatus.OK);
+        return ResponseEntity.ok().body(tokens);
     }
 
     @PostMapping("/add")
@@ -81,7 +90,7 @@ public class UserResource extends ExceptionHandling {
         User newUser = userService.addNewUser(firstName, lastName, username, email, role,
                 Boolean.parseBoolean(isActive), Boolean.parseBoolean(isNotLocked), profileImage);
 
-        return new ResponseEntity<>(newUser, HttpStatus.OK);
+        return ResponseEntity.ok().body(newUser);
     }
 
     @PostMapping("/update")
@@ -99,21 +108,21 @@ public class UserResource extends ExceptionHandling {
         User updatedUser = userService.updateUser(currentUsername, firstName, lastName, username, email, role,
                 Boolean.parseBoolean(isActive), Boolean.parseBoolean(isNotLocked), profileImage);
 
-        return new ResponseEntity<>(updatedUser, HttpStatus.OK);
+        return ResponseEntity.ok().body(updatedUser);
     }
 
     @GetMapping("/find/{username}")
     public ResponseEntity<User> getUser(@PathVariable("username") String username){
 
         User user = userService.findUserByUsername(username);
-        return new ResponseEntity<>(user, HttpStatus.OK);
+        return ResponseEntity.ok().body(user);
     }
 
     @GetMapping("/list")
     public ResponseEntity<List<User>> getAllUsers(){
 
         List<User> users = userService.getUsers();
-        return new ResponseEntity<>(users, HttpStatus.OK);
+        return ResponseEntity.ok().body(users);
     }
 
     @GetMapping("/reset-password/{email}")
@@ -138,7 +147,7 @@ public class UserResource extends ExceptionHandling {
             throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
 
         User user = userService.updateProfileImage(username, profileImage);
-        return new ResponseEntity<>(user, HttpStatus.OK);
+        return ResponseEntity.ok().body(user);
     }
 
     @GetMapping(path = "/image/{username}/{fileName}", produces = IMAGE_JPEG_VALUE)
@@ -166,6 +175,40 @@ public class UserResource extends ExceptionHandling {
         return byteArrayOutputStream.toByteArray();
     }
 
+    @GetMapping("/token/refresh")
+    public void tokenRefresh(HttpServletRequest request, HttpServletResponse response) throws IOException {
+
+        String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+
+        if(authorizationHeader != null || authorizationHeader.startsWith(TOKEN_PREFIX)){
+            try{
+                String refresh_token = authorizationHeader.substring(TOKEN_PREFIX.length()); // Remove "Bearer" from token.
+                String username = jwtTokenProvider.getSubject(refresh_token); // Get the username.
+                User user = userService.findUserByUsername(username);
+                UserPrincipal userPrincipal = new UserPrincipal(user);
+                String access_token = jwtTokenProvider.generateJwtAccessToken(userPrincipal);
+
+                Map<String,String> tokens = new HashMap<>();
+                tokens.put(JWT_ACCESS_TOKEN_HEADER, access_token);
+                tokens.put(JWT_REFRESH_TOKEN_HEADER, refresh_token);
+                response.setContentType(APPLICATION_JSON_VALUE);
+                new ObjectMapper().writeValue(response.getOutputStream(), tokens);
+
+            } catch (Exception exception){
+                response.setHeader("Error", exception.getMessage().toUpperCase());
+                response.setStatus(HttpStatus.FORBIDDEN.value());
+                Map<String,String> error = new HashMap<>();
+                error.put("Error", exception.getMessage().toUpperCase());
+                response.setContentType(APPLICATION_JSON_VALUE);
+                new ObjectMapper().writeValue(response.getOutputStream(), error);
+            }
+        } else{
+            throw new RuntimeException("Refresh Token is missing.");
+        }
+    }
+
+    /////////////////////////////////////////////
+
     private ResponseEntity<HttpResponse> response(HttpStatus httpStatus, String message) {
 
         HttpResponse body = new HttpResponse(
@@ -177,13 +220,13 @@ public class UserResource extends ExceptionHandling {
         return new ResponseEntity<>(body, httpStatus); // ResponseEntity takes two parameters: body & httpStatus. In this case, the body is the HttpResponse custom class.
     }
 
-    private HttpHeaders getJwtHeader(UserPrincipal userPrincipal) {
+    private Map getJwtTokens(UserPrincipal userPrincipal) {
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(SecurityConstant.JWT_ACCESS_TOKEN_HEADER, jwtTokenProvider.generateJwtAccessToken(userPrincipal));
-        headers.add(SecurityConstant.JWT_REFRESH_TOKEN_HEADER, jwtTokenProvider.generateJwtRefreshToken(userPrincipal));
+        Map<String,String> tokens = new HashMap<>();
+        tokens.put(SecurityConstant.JWT_ACCESS_TOKEN_HEADER, jwtTokenProvider.generateJwtAccessToken(userPrincipal));
+        tokens.put(SecurityConstant.JWT_REFRESH_TOKEN_HEADER, jwtTokenProvider.generateJwtRefreshToken(userPrincipal));
 
-        return headers;
+        return tokens;
     }
 
     private void authenticate(String username, String password) {
