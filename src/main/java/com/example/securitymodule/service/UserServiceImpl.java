@@ -3,15 +3,13 @@ package com.example.securitymodule.service;
 import com.example.securitymodule.domain.User;
 import com.example.securitymodule.domain.UserPrincipal;
 import com.example.securitymodule.enumeration.Role;
-import com.example.securitymodule.exception.domain.EmailExistsException;
-import com.example.securitymodule.exception.domain.EmailNotFoundException;
-import com.example.securitymodule.exception.domain.UserNotFoundException;
-import com.example.securitymodule.exception.domain.UsernameExistsException;
+import com.example.securitymodule.exception.domain.*;
 import com.example.securitymodule.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.EmailValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -75,7 +73,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
 
     @Override
     public User register(String firstName, String lastName, String username, String email)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, MessagingException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, MessagingException, EmailNotValidException, UsernameNotValidException {
 
         validateNewUsernameAndEmail(StringUtils.EMPTY, username, email);
 
@@ -122,7 +120,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     public User addNewUser(String firstName, String lastName, String username,
                            String email, String role, boolean isNotLocked,
                            boolean isActive, MultipartFile profileImage)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException, EmailNotValidException, UsernameNotValidException {
 
         validateNewUsernameAndEmail(StringUtils.EMPTY, username, email);
         String password = generatePassword();
@@ -153,7 +151,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     public User updateUser(String currentUsername, String newFirstName, String newLastName,
                            String newUsername, String newEmail, String newRole,
                            boolean isNotLocked, boolean isActive, MultipartFile profileImage)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException, EmailNotValidException, UsernameNotValidException {
 
         User currentUser = validateNewUsernameAndEmail(currentUsername, newUsername, newEmail);
 
@@ -195,7 +193,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
 
     @Override
     public User updateProfileImage(String username, MultipartFile profileImage)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException, EmailNotValidException, UsernameNotValidException {
 
         User user = validateNewUsernameAndEmail(username, null, null);
 
@@ -250,7 +248,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     private String getTemporaryProfileImageUrl(String username) {
         return ServletUriComponentsBuilder // This takes the current path and adds an uri component.
                 .fromCurrentContextPath()
-                .path(DEFAULT_USER_IMAGE_PATH + username)
+                .path(DEFAULT_USER_IMAGE_PATH + FORWARD_SLASH + username)
                 .toUriString();
     }
 
@@ -269,10 +267,20 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     //  This validation method will be used for creating a new account AND updating a new account.
     private User validateNewUsernameAndEmail(String currentUsername,
                                              String newUsername,
-                                             String newEmail) throws UserNotFoundException, UsernameExistsException, EmailExistsException {
+                                             String newEmail)
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, UsernameNotValidException, EmailNotValidException {
 
         User userByNewUsername = findUserByUsername(newUsername);
         User userByNewEmail = findUserByEmail(newEmail);
+
+        if(newUsername instanceof String == false || newUsername.isBlank()){
+            throw new UsernameNotValidException(USERNAME_NOT_VALID);
+        }
+
+        EmailValidator emailValidator = EmailValidator.getInstance();
+        if(!emailValidator.isValid(newEmail)){
+            throw new EmailNotValidException(EMAIL_NOT_VALID);
+        }
 
         //  If "currentUsername" is blank, we're dealing with a new user, so we skip this part.
         if(StringUtils.isNotBlank(currentUsername)){

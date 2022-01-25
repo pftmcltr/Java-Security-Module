@@ -33,7 +33,7 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter { // This  will
                                     FilterChain filterChain)
                                     throws ServletException, IOException {
 
-        if(request.getServletPath().equals("/user/token/refresh")){
+        if(request.getServletPath().equals("/user/token/refresh")){ // Don't ask for authorities on this page.
             filterChain.doFilter(request, response);
         }
         else if(request.getMethod().equalsIgnoreCase(OPTIONS_HTTP_METHOD)){

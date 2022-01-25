@@ -32,6 +32,8 @@ public class ExceptionHandling implements ErrorController {
     public static final String ACCOUNT_DISABLED = "Your account has been disabled.";
     public static final String ERROR_PROCESSING_FILE = "Error occurred while processing file.";
     public static final String NOT_ENOUGH_PERMISSIONS = "You do not have enough permissions.";
+    public static final String USERNAME_NOT_VALID = "Username not valid.";
+    public static final String EMAIL_NOT_VALID = "Email not valid.";
 
     @RequestMapping("/error") // It will work only with the ErrorController Interface.
     public ResponseEntity<HttpResponse> pageNotFoundException(){
@@ -56,6 +58,16 @@ public class ExceptionHandling implements ErrorController {
     @ExceptionHandler(LockedException.class)
     public ResponseEntity<HttpResponse> lockedException(){
         return createHttpResponse(HttpStatus.UNAUTHORIZED, ACCOUNT_LOCKED);
+    }
+
+    @ExceptionHandler(UsernameNotValidException.class)
+    public ResponseEntity<HttpResponse> usernameNotValidException(UsernameNotValidException exception){
+        return createHttpResponse(HttpStatus.NOT_ACCEPTABLE, USERNAME_NOT_VALID);
+    }
+
+    @ExceptionHandler(EmailNotValidException.class)
+    public ResponseEntity<HttpResponse> emailNotValidException(EmailNotValidException exception){
+        return createHttpResponse(HttpStatus.NOT_ACCEPTABLE, EMAIL_NOT_VALID);
     }
 
     @ExceptionHandler(TokenExpiredException.class)

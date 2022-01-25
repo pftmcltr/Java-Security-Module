@@ -56,7 +56,7 @@ public class UserResource extends ExceptionHandling {
 
     @PostMapping("/register")
     public ResponseEntity<User> register(@RequestBody User user)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, MessagingException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, MessagingException, EmailNotValidException, UsernameNotValidException {
 
         User newUser = userService.register(user.getFirstName(), user.getLastName(),
                                             user.getUsername(), user.getEmail());
@@ -85,7 +85,7 @@ public class UserResource extends ExceptionHandling {
                                            @RequestParam("isActive") String isActive,
                                            @RequestParam("isNotLocked") String isNotLocked,
                                            @RequestParam(value = "profileImage", required = false) MultipartFile profileImage)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException, EmailNotValidException, UsernameNotValidException {
 
         User newUser = userService.addNewUser(firstName, lastName, username, email, role,
                 Boolean.parseBoolean(isActive), Boolean.parseBoolean(isNotLocked), profileImage);
@@ -103,7 +103,7 @@ public class UserResource extends ExceptionHandling {
                                            @RequestParam("isActive") String isActive,
                                            @RequestParam("isNotLocked") String isNotLocked,
                                            @RequestParam(value = "profileImage", required = false) MultipartFile profileImage)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException, EmailNotValidException, UsernameNotValidException {
 
         User updatedUser = userService.updateUser(currentUsername, firstName, lastName, username, email, role,
                 Boolean.parseBoolean(isActive), Boolean.parseBoolean(isNotLocked), profileImage);
@@ -141,15 +141,17 @@ public class UserResource extends ExceptionHandling {
         return response(HttpStatus.NO_CONTENT, USER_DELETED_SUCCESSFULLY);
     }
 
+//    UPDATE PROFILE PICTURE
     @PostMapping("/update-profile-image")
     public ResponseEntity<User> updateProfileImage(@RequestParam("username") String username,
                                                    @RequestParam(value = "profileImage") MultipartFile profileImage)
-            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException {
+            throws UserNotFoundException, UsernameExistsException, EmailExistsException, IOException, EmailNotValidException, UsernameNotValidException {
 
         User user = userService.updateProfileImage(username, profileImage);
         return ResponseEntity.ok().body(user);
     }
 
+//    GET PROFILE PICTURE
     @GetMapping(path = "/image/{username}/{fileName}", produces = IMAGE_JPEG_VALUE)
     public byte[] getProfileImage(@PathVariable("username") String username,
                                   @PathVariable("fileName") String fileName) throws IOException {
@@ -157,11 +159,11 @@ public class UserResource extends ExceptionHandling {
         return Files.readAllBytes(Paths.get(USER_FOLDER + username + FORWARD_SLASH + fileName)); // "user.home" + "/supportportal/user/username/username.jpg"
     }
 
-    //    Robohash profile image
+//    ROBOHASH PROFILE PICTURE
     @GetMapping(path = "/image/profile/{username}", produces = IMAGE_JPEG_VALUE)
     public byte[] getTempProfileImage(@PathVariable("username") String username) throws IOException {
 
-        URL url = new URL(TEMP_PROFILE_IMAGE_BASE_URL + username); // Create a URL.
+        URL url = new URL(TEMP_PROFILE_IMAGE_BASE_URL + FORWARD_SLASH + username); // Create a URL.
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(); // Store the data that comes from the URL.
 
         try(InputStream inputStream = url.openStream()){ // Open the URL.
@@ -170,6 +172,8 @@ public class UserResource extends ExceptionHandling {
             while((bytesRead = inputStream.read(chunk)) > 0){ // Read chunks of inputStream until we're done.
                 byteArrayOutputStream.write(chunk, 0, bytesRead); // Loop 1 - 1024 bytes, Loop 2 - 1024 bytes.
             }
+        } catch (Exception exception){
+            throw new IOException("Robohash did not generate the image.");
         }
 
         return byteArrayOutputStream.toByteArray();
@@ -181,7 +185,6 @@ public class UserResource extends ExceptionHandling {
         String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
 
         if(authorizationHeader != null || authorizationHeader.startsWith(TOKEN_PREFIX)){
-            try{
                 String refresh_token = authorizationHeader.substring(TOKEN_PREFIX.length()); // Remove "Bearer" from token.
                 String username = jwtTokenProvider.getSubject(refresh_token); // Get the username.
                 User user = userService.findUserByUsername(username);
@@ -193,17 +196,13 @@ public class UserResource extends ExceptionHandling {
                 tokens.put(JWT_REFRESH_TOKEN_HEADER, refresh_token);
                 response.setContentType(APPLICATION_JSON_VALUE);
                 new ObjectMapper().writeValue(response.getOutputStream(), tokens);
-
-            } catch (Exception exception){
-                response.setHeader("Error", exception.getMessage().toUpperCase());
-                response.setStatus(HttpStatus.FORBIDDEN.value());
-                Map<String,String> error = new HashMap<>();
-                error.put("Error", exception.getMessage().toUpperCase());
-                response.setContentType(APPLICATION_JSON_VALUE);
-                new ObjectMapper().writeValue(response.getOutputStream(), error);
-            }
         } else{
-            throw new RuntimeException("Refresh Token is missing.");
+            response.setHeader("Error", TOKEN_CANNOT_BE_VERIFIED);
+            response.setStatus(HttpStatus.FORBIDDEN.value());
+            Map<String,String> error = new HashMap<>();
+            error.put("Error", TOKEN_CANNOT_BE_VERIFIED);
+            response.setContentType(APPLICATION_JSON_VALUE);
+            new ObjectMapper().writeValue(response.getOutputStream(), error);
         }
     }
 
